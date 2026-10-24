@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,6 +14,7 @@ const API_URL =
 
 type User = {
   id: string;
+  _id?: string;
   username: string;
   email: string;
   profilePicture?: string;
@@ -24,8 +24,8 @@ type User = {
 type Post = {
   _id: string;
   username: string;
-  location: string;
-  initial: string;
+  location?: string;
+  initial?: string;
   likes: number;
   caption: string;
   media: {
@@ -35,20 +35,11 @@ type Post = {
   createdAt?: string;
 };
 
-type FollowStats = {
-  followersCount: number;
-  followingCount: number;
-  isFollowing: boolean;
-  isOwnProfile: boolean;
-};
-
 export default function ProfilePage() {
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [followStats, setFollowStats] =
-    useState<FollowStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -57,6 +48,9 @@ export default function ProfilePage() {
 
     async function loadProfile() {
       try {
+        setLoading(true);
+        setError("");
+
         // Get the currently logged-in user.
         const userResponse = await fetch(
           `${API_URL}/api/auth/me`,
@@ -81,28 +75,7 @@ export default function ProfilePage() {
 
         setUser(currentUser);
 
-        // Load real follower and following counts.
-        const statsResponse = await fetch(
-          `${API_URL}/api/users/${currentUser.id}/follow-status`,
-          {
-            credentials: "include",
-          }
-        );
-
-        if (!statsResponse.ok) {
-          throw new Error(
-            "Unable to load follower statistics."
-          );
-        }
-
-        const statsData: FollowStats =
-          await statsResponse.json();
-
-        if (cancelled) return;
-
-        setFollowStats(statsData);
-
-        // Fetch only posts owned by the logged-in user.
+        // Fetch posts belonging to the logged-in user.
         const postsResponse = await fetch(
           `${API_URL}/api/posts/mine`,
           {
@@ -119,8 +92,7 @@ export default function ProfilePage() {
           throw new Error("Unable to load your posts.");
         }
 
-        const myPosts: Post[] =
-          await postsResponse.json();
+        const myPosts: Post[] = await postsResponse.json();
 
         if (cancelled) return;
 
@@ -147,17 +119,16 @@ export default function ProfilePage() {
     };
   }, [router]);
 
+  // Loading state
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white">
-        <LoaderCircle
-          className="animate-spin"
-          size={32}
-        />
+        <LoaderCircle className="animate-spin" size={32} />
       </main>
     );
   }
 
+  // Error state
   if (error || !user) {
     return (
       <main className="min-h-screen bg-white text-black">
@@ -176,10 +147,12 @@ export default function ProfilePage() {
     );
   }
 
+  // Profile page
   return (
     <main className="min-h-screen bg-white text-black">
       <section className="min-h-screen pb-20 md:ml-64">
         <div className="mx-auto max-w-5xl px-5 py-8 md:px-10">
+
           {/* Profile header */}
           <header className="flex flex-col gap-8 border-b border-gray-200 pb-10 sm:flex-row sm:items-center sm:gap-16 sm:px-8">
             <div className="flex shrink-0 justify-center sm:w-52">
@@ -191,11 +164,7 @@ export default function ProfilePage() {
                 />
               ) : (
                 <div className="flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 text-5xl font-semibold text-white sm:h-36 sm:w-36">
-                  {(
-                    user.username ||
-                    user.email ||
-                    "U"
-                  )
+                  {(user.username || user.email || "U")
                     .charAt(0)
                     .toUpperCase()}
                 </div>
@@ -210,9 +179,7 @@ export default function ProfilePage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    router.push("/profile/edit")
-                  }
+                  onClick={() => router.push("/profile/edit")}
                   className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold hover:bg-gray-200"
                 >
                   Edit profile
@@ -228,32 +195,16 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              {/* Live profile statistics */}
+              {/* Post count */}
               <div className="mb-6 flex justify-center gap-6 text-sm sm:justify-start sm:gap-8">
                 <p>
-                  <strong>{posts.length}</strong>{" "}
-                  <span>posts</span>
-                </p>
-
-                <p>
-                  <strong>
-                    {followStats?.followersCount ?? 0}
-                  </strong>{" "}
-                  <span>followers</span>
-                </p>
-
-                <p>
-                  <strong>
-                    {followStats?.followingCount ?? 0}
-                  </strong>{" "}
-                  <span>following</span>
+                  <strong>{posts.length}</strong> posts
                 </p>
               </div>
 
+              {/* User information */}
               <div className="text-center sm:text-left">
-                <p className="font-semibold">
-                  {user.username}
-                </p>
+                <p className="font-semibold">{user.username}</p>
 
                 <p className="mt-1 whitespace-pre-wrap text-sm">
                   {user.bio || "No bio yet."}
@@ -274,17 +225,15 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Posts grid */}
+          {/* Posts grid or empty state */}
           {posts.length > 0 ? (
             <div className="grid grid-cols-3 gap-1 sm:gap-5">
               {posts.map((post) =>
-                post.media.map((media, index) => (
+                (post.media ?? []).map((media, index) => (
                   <button
                     key={`${post._id}-${index}`}
                     type="button"
-                    onClick={() =>
-                      router.push(`/post/${post._id}`)
-                    }
+                    onClick={() => router.push(`/post/${post._id}`)}
                     className="group relative aspect-square overflow-hidden bg-gray-100"
                     aria-label={`View post: ${post.caption}`}
                   >
@@ -307,7 +256,7 @@ export default function ProfilePage() {
 
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
                       <span className="font-semibold text-white">
-                        ♥ {post.likes}
+                        ♥ {post.likes ?? 0}
                       </span>
                     </div>
                   </button>
